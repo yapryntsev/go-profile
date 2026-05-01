@@ -1,0 +1,89 @@
+name: "goph-profile"
+services:
+  app:
+    build:
+      context: ../../
+      dockerfile: .ya/docker/dockerfile
+      target: server
+    develop:
+      watch:
+        - action: rebuild
+          path: ../../internal
+    ports:
+      - "${SERVER_PORT}:8080"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ../../
+      dockerfile: .ya/docker/dockerfile
+      target: worker
+    develop:
+      watch:
+        - action: rebuild
+          path: ../../internal
+    ports:
+      - "${WORKER_PORT}:8081"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18-alpine
+    ports:
+      - "${DB_PORT}:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 1s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  minio:
+    image: quay.io/minio/minio
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_ADM_PORT}:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
+    volumes:
+      - ./data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 1s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    ports:
+      - "${KAFKA_PORT}:9092"
+    environment:
+      CLUSTER_ID: kU6Y8-m8S7S9c2xV1-Y-gA
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0

@@ -1,0 +1,21 @@
+type: object
+required:
+  - id
+  - user_id
+  - url
+  - status
+  - created_at
+properties:
+  id:
+    type: string
+    format: uuid
+  user_id:
+    type: string
+  url:
+    type: string
+    format: uri
+  status:
+    type: string
+  created_at:
+    type: string
+    format: date-time

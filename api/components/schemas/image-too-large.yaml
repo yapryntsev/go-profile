@@ -1,0 +1,9 @@
+type: object
+required:
+  - error
+  - max_size
+properties:
+  error:
+    type: string
+  max_size:
+    type: string
