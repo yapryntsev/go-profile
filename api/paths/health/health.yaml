@@ -1,0 +1,9 @@
+get:
+  description: Service health status
+  responses:
+    200:
+      description: Health check report
+      content:
+        application/json:
+          schema:
+            $ref: '../../components/schemas/health-check.yaml'

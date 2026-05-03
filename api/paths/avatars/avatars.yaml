@@ -1,0 +1,36 @@
+post:
+  parameters:
+    - in: header
+      name: X-User-ID
+      required: true
+      schema:
+        type: string
+  requestBody:
+    content:
+      multipart/form-data:
+        schema:
+          type: object
+          required: [file]
+          properties:
+            file:
+              type: string
+              format: binary
+  responses:
+    201:
+      description: Image successfully uploaded
+      content:
+        application/json:
+          schema:
+            $ref: '../../components/schemas/image-uploaded.yaml'
+    400:
+      description: Invalid file format
+      content:
+        application/json:
+          schema:
+            $ref: '../../components/schemas/api-error.yaml'
+    413:
+      description: Image too large
+      content:
+        application/json:
+          schema:
+            $ref: '../../components/schemas/image-too-large.yaml'

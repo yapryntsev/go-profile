@@ -1,0 +1,55 @@
+get:
+  parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    - name: size
+      in: query
+      schema:
+        type: string
+    - name: format
+      in: query
+      schema:
+        type: string
+  responses:
+    200:
+      description: Image for provided id
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              file:
+                type: string
+                format: binary
+    404:
+      description: Image for provided id not found
+      content:
+        application/json:
+          schema:
+            $ref: '../../components/schemas/not-found.yaml'
+delete:
+  parameters:
+    - in: header
+      name: X-User-ID
+      required: true
+      schema:
+        type: string
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    200:
+      description: Image deleted
+    403:
+      description: X-User-ID is not the image owner
+      content:
+        application/json:
+          schema:
+            $ref: '../../components/schemas/api-error.yaml'

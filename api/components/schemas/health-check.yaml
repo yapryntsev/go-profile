@@ -1,0 +1,12 @@
+type: object
+required:
+  - db
+  - s3
+  - broker
+properties:
+  db:
+    type: string
+  s3:
+    type: string
+  broker:
+    type: string

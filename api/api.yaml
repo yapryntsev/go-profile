@@ -1,0 +1,15 @@
+openapi: 3.0.1
+
+info:
+  title: GophProfile API
+  version: 1.0.0
+
+paths:
+  /api/v1/avatars:
+    $ref: './paths/avatars/avatars.yaml'
+  /api/v1/avatars/{id}:
+    $ref: './paths/avatars/avatar.yaml'
+  /api/v1/avatars/{id}/metadata:
+    $ref: './paths/avatars/metadata.yaml'
+  /health:
+    $ref: './paths/health/health.yaml'

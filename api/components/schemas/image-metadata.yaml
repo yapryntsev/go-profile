@@ -1,0 +1,54 @@
+type: object
+required:
+  - id
+  - user_id
+  - file_name
+  - mime_type
+  - size
+  - dimensions
+  - created_at
+  - updated_at
+properties:
+  id:
+    type: string
+    format: uuid
+  user_id:
+    type: string
+  file_name:
+    type: string
+    example: avatar.jpg
+  mime_type:
+    type: string
+    example: image/jpeg
+  size:
+    type: integer
+    example: 1024000
+  dimensions:
+    type: object
+    required:
+      - width
+      - height
+    properties:
+      width:
+        type: integer
+      height:
+        type: integer
+  thumbnails:
+    type: array
+    items:
+      type: object
+      required:
+        - size
+        - url
+      properties:
+        size:
+          type: string
+        url:
+          type: string
+          format: uri
+  created_at:
+    type: string
+    format: date-time
+  updated_at:
+    type: string
+    format: date-time

@@ -1,0 +1,41 @@
+# Build stage.
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o server cmd/server/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o worker cmd/worker/main.go
+
+#  Worker image.
+FROM alpine:latest AS worker
+
+RUN adduser -D appuser
+USER appuser
+
+WORKDIR /app
+
+COPY --from=builder /app/worker .
+
+EXPOSE 8081
+
+CMD ["./worker"]
+
+#  Server image.
+FROM alpine:latest AS server
+
+RUN adduser -D appuser
+USER appuser
+
+WORKDIR /app
+
+COPY --from=builder /app/server .
+COPY --from=builder /app/web/static ./web/static
+
+EXPOSE 8080
+
+CMD ["./server"]
