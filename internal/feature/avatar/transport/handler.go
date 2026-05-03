@@ -50,9 +50,9 @@ func (h Handler) PostApiV1Avatars(
 	metadata, err := h.upload.Run(ctx, request.Params.XUserID, name, part)
 	if err != nil {
 		if errors.Is(err, model.ErrUploadAvatarTooLarge) {
-			return api.PostApiV1Avatars400JSONResponse{
-				Details: strconv.Itoa(model.AvatarMaxSizeBytes),
+			return api.PostApiV1Avatars413JSONResponse{
 				Error:   "File too large",
+				MaxSize: strconv.Itoa(model.AvatarMaxSizeBytes),
 			}, nil
 		} else if errors.Is(err, model.ErrUploadAvatarUnknown) {
 			return api.PostApiV1Avatars400JSONResponse{

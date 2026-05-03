@@ -5,9 +5,9 @@ import "errors"
 type FormatType string
 
 const (
-	JPEG FormatType = "application/jpeg"
-	PNG  FormatType = "application/png"
-	WebP FormatType = "application/webp"
+	JPEG FormatType = "image/jpeg"
+	PNG  FormatType = "image/png"
+	WebP FormatType = "image/webp"
 )
 
 func NewFormatType(s string) (FormatType, error) {

@@ -49,6 +49,11 @@ func (r Repo) Fetch(ctx context.Context, name string) (io.ReadCloser, error) {
 	return r.client.GetObject(ctx, r.bucketName, name, minio.GetObjectOptions{})
 }
 
+func (r Repo) Ping(ctx context.Context) error {
+	_, err := r.client.ListBuckets(ctx)
+	return err
+}
+
 func (r Repo) initialConfiguration() error {
 	ctx := context.Background()
 	isExists, err := r.client.BucketExists(ctx, r.bucketName)

@@ -2,7 +2,6 @@ package infra
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,17 +13,6 @@ type EventDispatcher struct {
 }
 
 func NewEventDispatcher(addr string, topic string) EventDispatcher {
-	dialer := &kafka.Dialer{
-		Timeout:   10 * time.Second,
-		DualStack: true,
-	}
-	conn, err := dialer.Dial("tcp", addr)
-	if err != nil {
-		fmt.Println(fmt.Errorf("failed to connect to kafka: %w", err))
-		return EventDispatcher{}
-	}
-	conn.Close()
-
 	return EventDispatcher{
 		writer: &kafka.Writer{
 			Addr:         kafka.TCP(addr),
