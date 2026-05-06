@@ -11,16 +11,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var builder = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 type Repo struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	tracer trace.Tracer
 }
 
-func NewRepo(pool *pgxpool.Pool) Repo {
-	return Repo{pool: pool}
+func NewRepo(pool *pgxpool.Pool, tracer trace.Tracer) Repo {
+	return Repo{pool: pool, tracer: tracer}
 }
 
 func (r Repo) Avatar(
@@ -29,8 +33,18 @@ func (r Repo) Avatar(
 	format *model.FormatType,
 	aspectRatio *model.AspectRatio,
 ) (string, error) {
+	ctx, span := r.tracer.Start(
+		ctx,
+		"db.select.avatar",
+		trace.WithAttributes(
+			attribute.String("avatar id", avatarID.String()),
+		),
+	)
+	defer span.End()
+
 	var sel string
 	if aspectRatio != nil {
+		span.SetAttributes(attribute.String("aspect ratio", string(*aspectRatio)))
 		sel = fmt.Sprintf("thumbnail_s3_keys->>'%s'", string(*aspectRatio))
 	} else {
 		sel = "s3_key"
@@ -38,6 +52,7 @@ func (r Repo) Avatar(
 
 	wr := sq.Eq{"id": avatarID}
 	if format != nil {
+		span.SetAttributes(attribute.String("format", string(*format)))
 		wr["mime_type"] = string(*format)
 	}
 
@@ -47,6 +62,9 @@ func (r Repo) Avatar(
 		Where(wr).
 		ToSql()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return "", fmt.Errorf("building avatar query: %w", err)
 	}
 
@@ -55,6 +73,10 @@ func (r Repo) Avatar(
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", model.ErrGetAvatarNotFound
 		}
+
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return "", fmt.Errorf("running get avatar query: %w", err)
 	}
 
@@ -62,6 +84,13 @@ func (r Repo) Avatar(
 }
 
 func (r Repo) Metadata(ctx context.Context, avatarID uuid.UUID) (model.Metadata, error) {
+	ctx, span := r.tracer.Start(
+		ctx,
+		"db.select.avatar_metadata",
+		trace.WithAttributes(attribute.String("avatar id", avatarID.String())),
+	)
+	defer span.End()
+
 	var metadata model.Metadata
 
 	query, args, err := builder.
@@ -70,6 +99,9 @@ func (r Repo) Metadata(ctx context.Context, avatarID uuid.UUID) (model.Metadata,
 		Where(sq.Eq{"id": avatarID}).
 		ToSql()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return model.Metadata{}, fmt.Errorf("building metadata query: %w", err)
 	}
 
@@ -95,6 +127,10 @@ func (r Repo) Metadata(ctx context.Context, avatarID uuid.UUID) (model.Metadata,
 		if errors.Is(err, pgx.ErrNoRows) {
 			return metadata, model.ErrGetAvatarMetadataNotFound
 		}
+
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return metadata, fmt.Errorf("running get metadata query: %w", err)
 	}
 
@@ -102,6 +138,16 @@ func (r Repo) Metadata(ctx context.Context, avatarID uuid.UUID) (model.Metadata,
 }
 
 func (r Repo) Delete(ctx context.Context, userID string, avatarID uuid.UUID) (model.Metadata, error) {
+	ctx, span := r.tracer.Start(
+		ctx,
+		"db.delete.avatar",
+		trace.WithAttributes(
+			attribute.String("avatar id", avatarID.String()),
+			attribute.String("user id", userID),
+		),
+	)
+	defer span.End()
+
 	var metadata model.Metadata
 
 	query, args, err := builder.
@@ -111,6 +157,9 @@ func (r Repo) Delete(ctx context.Context, userID string, avatarID uuid.UUID) (mo
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return metadata, fmt.Errorf("building delete query: %w", err)
 	}
 
@@ -135,6 +184,10 @@ func (r Repo) Delete(ctx context.Context, userID string, avatarID uuid.UUID) (mo
 		if errors.Is(err, pgx.ErrNoRows) {
 			return metadata, model.ErrDeleteAvatarNotFound
 		}
+
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return metadata, fmt.Errorf("running delete avatar query: %w", err)
 	}
 
@@ -152,6 +205,16 @@ func (r Repo) Add(
 	size int,
 	s3key string,
 ) (model.Metadata, error) {
+	ctx, span := r.tracer.Start(
+		ctx,
+		"db.insert.avatar",
+		trace.WithAttributes(
+			attribute.String("avatar id", avatarID.String()),
+			attribute.String("user id", userID),
+		),
+	)
+	defer span.End()
+
 	var metadata model.Metadata
 
 	query, args, err := builder.
@@ -171,6 +234,9 @@ func (r Repo) Add(
 		Suffix("RETURNING *").
 		ToSql()
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return metadata, fmt.Errorf("building add query: %w", err)
 	}
 
@@ -192,6 +258,9 @@ func (r Repo) Add(
 			&metadata.DeletedAt,
 		)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		span.RecordError(err)
+
 		return metadata, fmt.Errorf("running add avatar metadata query: %w", err)
 	}
 

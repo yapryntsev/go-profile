@@ -8,7 +8,8 @@ import (
 
 // App represents the application instance configuration.
 type App struct {
-	Env  Env `env:"ENV" env-description:"app environment" env-required:"true"`
+	Env  Env    `env:"ENV" env-description:"app environment" env-required:"true"`
+	Name string `env:"APP_NAME" env-description:"app name" env-required:"true"`
 	HTTP struct {
 		Addr string `env:"APP_HTTP_ADDR" env-description:"http listen address" env-required:"true"`
 	}

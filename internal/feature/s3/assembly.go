@@ -3,17 +3,24 @@ package s3
 import (
 	"goph-profile/internal/feature/s3/domain"
 	"goph-profile/internal/feature/s3/infra"
+	"reflect"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"go.opentelemetry.io/otel/trace"
 )
 
-func NewService(
+type Feature struct {
+	S3Service domain.Service
+}
+
+func New(
 	endpoint string,
 	accessKeyID string,
 	secretAccessKey string,
 	bucketName string,
-) (domain.Service, error) {
+	tracerProvider trace.TracerProvider,
+) (Feature, error) {
 	client, err := minio.New(
 		endpoint, &minio.Options{
 			Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
@@ -21,13 +28,12 @@ func NewService(
 		},
 	)
 	if err != nil {
-		return domain.Service{}, err
+		return Feature{}, err
 	}
-
-	repo, err := infra.NewRepo(bucketName, client)
+	repo, err := infra.NewRepo(bucketName, tracerProvider.Tracer(reflect.TypeOf(Feature{}).PkgPath()), client)
 	if err != nil {
-		return domain.Service{}, err
+		return Feature{}, err
 	}
 
-	return domain.NewService(repo), nil
+	return Feature{S3Service: domain.NewService(repo)}, nil
 }

@@ -11,6 +11,10 @@ import (
 	"io"
 	"mime/multipart"
 	"strconv"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type Handler struct {
@@ -18,6 +22,10 @@ type Handler struct {
 	metadata domain.UseCaseGetAvatarMetadata
 	delete   domain.UseCaseDeleteAvatar
 	upload   domain.UseCaseUploadAvatarMetadata
+
+	uploadsTotal   metric.Int64Counter
+	uploadDuration metric.Float64Histogram
+	storageUsage   metric.Float64UpDownCounter
 }
 
 func NewHandler(
@@ -25,12 +33,29 @@ func NewHandler(
 	metadata domain.UseCaseGetAvatarMetadata,
 	delete domain.UseCaseDeleteAvatar,
 	upload domain.UseCaseUploadAvatarMetadata,
+	meter metric.Meter,
 ) Handler {
+	uploadsTotal, _ := meter.Int64Counter(
+		"avatars_uploads_total",
+		metric.WithDescription("Total number of avatar uploads"),
+	)
+	uploadDuration, _ := meter.Float64Histogram(
+		"avatars_upload_duration_seconds",
+		metric.WithDescription("Avatar upload duration"),
+	)
+	storageUsage, _ := meter.Float64UpDownCounter(
+		"avatars_storage_bytes",
+		metric.WithDescription("Total storage used by avatars"),
+	)
+
 	return Handler{
-		avatar:   avatar,
-		metadata: metadata,
-		delete:   delete,
-		upload:   upload,
+		avatar:         avatar,
+		metadata:       metadata,
+		delete:         delete,
+		upload:         upload,
+		uploadsTotal:   uploadsTotal,
+		uploadDuration: uploadDuration,
+		storageUsage:   storageUsage,
 	}
 }
 
@@ -38,6 +63,8 @@ func (h Handler) PostApiV1Avatars(
 	ctx context.Context,
 	request api.PostApiV1AvatarsRequestObject,
 ) (api.PostApiV1AvatarsResponseObject, error) {
+	start := time.Now()
+
 	part, err := request.Body.NextPart()
 	if err != nil {
 		if errors.Is(err, io.EOF) {
@@ -48,6 +75,21 @@ func (h Handler) PostApiV1Avatars(
 
 	name := part.FileName()
 	metadata, err := h.upload.Run(ctx, request.Params.XUserID, name, part)
+
+	status := "success"
+	if err != nil {
+		status = "error"
+	}
+
+	elapsed := time.Since(start).Seconds()
+	h.uploadDuration.Record(ctx, elapsed, metric.WithAttributes(attribute.String("status", status)))
+	h.uploadsTotal.Add(
+		ctx, 1, metric.WithAttributes(
+			attribute.String("status", status),
+			attribute.String("user_id", request.Params.XUserID),
+		),
+	)
+
 	if err != nil {
 		if errors.Is(err, model.ErrUploadAvatarTooLarge) {
 			return api.PostApiV1Avatars413JSONResponse{
@@ -63,6 +105,12 @@ func (h Handler) PostApiV1Avatars(
 
 		return nil, fmt.Errorf("failed to get avatar metadata: %w", err)
 	}
+
+	h.storageUsage.Add(
+		ctx, float64(metadata.SizeBytes), metric.WithAttributes(
+			attribute.String("user_id", request.Params.XUserID),
+		),
+	)
 
 	return api.PostApiV1Avatars201JSONResponse{
 		CreatedAt: metadata.CreatedAt,

@@ -3,7 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"goph-profile/internal/app/bootstrap"
+	golog "log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,7 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"go.opentelemetry.io/contrib/bridges/otelzap"
+	log "go.opentelemetry.io/otel/sdk/log"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"goph-profile/internal/config"
 	"goph-profile/internal/feature/thumbnail/domain"
@@ -26,12 +30,17 @@ func main() {
 
 	cfg, err := config.New()
 	if err != nil {
-		log.Fatal(fmt.Errorf("failed to parse config: %w", err))
+		golog.Fatal(fmt.Errorf("failed to parse config: %w", err))
 	}
 
-	logger, err := setupLogger(cfg.Env)
+	telemetry, err := bootstrap.NewTelemetryStack(ctx, cfg)
 	if err != nil {
-		log.Fatal(fmt.Errorf("failed to setup logger: %w", err))
+		golog.Fatal(fmt.Errorf("create telemetry stack failed: %w", err))
+	}
+
+	logger, err := setupLogger(cfg, telemetry.Logger)
+	if err != nil {
+		golog.Fatal(fmt.Errorf("failed to setup logger: %w", err))
 	}
 
 	pool, err := setupDBPool(ctx, cfg.DB.Conn)
@@ -50,8 +59,9 @@ func main() {
 		logger.Fatal("failed to create s3 client", zap.Error(err))
 	}
 
-	dbRepo := infra.NewRepo(pool)
-	s3Repo := infra.NewS3Repo(minioClient, cfg.S3.BucketName)
+	tracer := telemetry.Tracer.Tracer("worker")
+	dbRepo := infra.NewRepo(pool, tracer)
+	s3Repo := infra.NewS3Repo(minioClient, tracer, cfg.S3.BucketName)
 
 	logger.Info(
 		"starting event-receiver",
@@ -59,7 +69,7 @@ func main() {
 		zap.String("topic", cfg.Kafka.Topic),
 	)
 
-	receiver := infra.NewEventReceiver(logger, cfg.Kafka.Addr, cfg.Kafka.Topic)
+	receiver := infra.NewEventReceiver(tracer, logger, cfg.Kafka.Addr, cfg.Kafka.Topic)
 	receiver.Observe(
 		ctx, func(event model.Event) {
 			switch e := event.(type) {
@@ -86,14 +96,21 @@ func main() {
 	)
 }
 
-func setupLogger(env config.Env) (*zap.Logger, error) {
-	switch env {
+func setupLogger(cfg config.App, loggerProvider *log.LoggerProvider) (*zap.Logger, error) {
+	otelCore := otelzap.NewCore(cfg.Name, otelzap.WithLoggerProvider(loggerProvider))
+	coreWrapper := zap.WrapCore(
+		func(core zapcore.Core) zapcore.Core {
+			return zapcore.NewTee(core, otelCore)
+		},
+	)
+
+	switch cfg.Env {
 	case config.Dev:
-		return zap.NewDevelopment()
+		return zap.NewDevelopment(coreWrapper)
 	case config.Prod:
-		return zap.NewProduction()
+		return zap.NewProduction(coreWrapper)
 	default:
-		return nil, fmt.Errorf("unknown env type: %s", env)
+		return nil, fmt.Errorf("unknown env type: %s", cfg.Env)
 	}
 }
 
