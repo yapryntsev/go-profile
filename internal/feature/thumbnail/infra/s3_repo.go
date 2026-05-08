@@ -101,6 +101,7 @@ func (r S3Repo) Delete(ctx context.Context, key string) error {
 			attribute.String("object key", key),
 		),
 	)
+	defer span.End()
 
 	if err := r.client.RemoveObject(ctx, r.bucketName, key, minio.RemoveObjectOptions{}); err != nil {
 		span.SetStatus(codes.Error, err.Error())

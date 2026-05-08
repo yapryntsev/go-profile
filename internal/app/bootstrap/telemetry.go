@@ -71,21 +71,21 @@ func NewTelemetryStack(ctx context.Context, cfg config.App) (Telemetry, error) {
 }
 
 func (t Telemetry) Shutdown(ctx context.Context) error {
-	var resErr error
+	var errs []error
 
 	if err := t.Logger.Shutdown(ctx); err != nil {
-		err = errors.Join(resErr, err)
+		errs = append(errs, err)
 	}
 
 	if err := t.Tracer.Shutdown(ctx); err != nil {
-		err = errors.Join(resErr, err)
+		errs = append(errs, err)
 	}
 
 	if err := t.Metric.Shutdown(ctx); err != nil {
-		err = errors.Join(resErr, err)
+		errs = append(errs, err)
 	}
 
-	return resErr
+	return errors.Join(errs...)
 }
 
 func newResource(ctx context.Context, serviceName string) (*resource.Resource, error) {

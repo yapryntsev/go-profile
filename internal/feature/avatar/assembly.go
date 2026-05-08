@@ -28,21 +28,26 @@ func New(
 	avatarRepo AvatarRepo,
 	tracerProvider *trace.TracerProvider,
 	meterProvider metric.MeterProvider,
-) Feature {
+) (Feature, error) {
 	tracer := tracerProvider.Tracer(reflect.TypeOf(Feature{}).PkgPath())
 	meter := meterProvider.Meter(reflect.TypeOf(Feature{}).PkgPath())
 
 	repo := infra.NewRepo(pool, tracer)
 	dsp := infra.NewEventDispatcher(tracer, kafkaAddr, kafkaTopic)
 
-	return Feature{
-		Handler: transport.NewHandler(
-			domain.NewUseCaseGetAvatar(repo, avatarRepo),
-			domain.NewUseCaseGetAvatarMetadata(repo),
-			domain.NewUseCaseDeleteAvatar(repo, dsp),
-			domain.NewUseCaseUploadAvatarMetadata(avatarRepo, repo, dsp),
-			meter,
-		),
-		Finish: dsp.Close,
+	handler, err := transport.NewHandler(
+		domain.NewUseCaseGetAvatar(repo, avatarRepo),
+		domain.NewUseCaseGetAvatarMetadata(repo),
+		domain.NewUseCaseDeleteAvatar(repo, dsp),
+		domain.NewUseCaseUploadAvatarMetadata(avatarRepo, repo, dsp),
+		meter,
+	)
+	if err != nil {
+		return Feature{}, err
 	}
+
+	return Feature{
+		Handler: handler,
+		Finish:  dsp.Close,
+	}, err
 }

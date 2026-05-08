@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"goph-profile/internal/pkg/otelkafka"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,35 +16,6 @@ import (
 type EventDispatcher struct {
 	writer *kafka.Writer
 	tracer trace.Tracer
-}
-
-type kafkaHeaderCarrier []kafka.Header
-
-func (c kafkaHeaderCarrier) Get(key string) string {
-	for _, h := range c {
-		if h.Key == key {
-			return string(h.Value)
-		}
-	}
-	return ""
-}
-
-func (c *kafkaHeaderCarrier) Set(key string, value string) {
-	for i, h := range *c {
-		if h.Key == key {
-			(*c)[i].Value = []byte(value)
-			return
-		}
-	}
-	*c = append(*c, kafka.Header{Key: key, Value: []byte(value)})
-}
-
-func (c kafkaHeaderCarrier) Keys() []string {
-	keys := make([]string, len(c))
-	for i, h := range c {
-		keys[i] = h.Key
-	}
-	return keys
 }
 
 func NewEventDispatcher(tracer trace.Tracer, addr string, topic string) EventDispatcher {
@@ -69,7 +41,7 @@ func (e EventDispatcher) AvatarDeleted(ctx context.Context, avatarID uuid.UUID) 
 	)
 	defer span.End()
 
-	headers := kafkaHeaderCarrier{{Key: "action", Value: []byte("delete")}}
+	headers := otelkafka.HeaderCarrier{{Key: "action", Value: []byte("delete")}}
 	otel.GetTextMapPropagator().Inject(ctx, &headers)
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -96,7 +68,7 @@ func (e EventDispatcher) AvatarUploaded(ctx context.Context, avatarID uuid.UUID)
 	)
 	defer span.End()
 
-	headers := kafkaHeaderCarrier{{Key: "action", Value: []byte("upload")}}
+	headers := otelkafka.HeaderCarrier{{Key: "action", Value: []byte("upload")}}
 	otel.GetTextMapPropagator().Inject(ctx, &headers)
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)

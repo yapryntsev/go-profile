@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"goph-profile/internal/feature/thumbnail/domain/model"
+	"goph-profile/internal/pkg/otelkafka"
 	"io"
 
 	"github.com/google/uuid"
@@ -20,35 +21,6 @@ type EventReceiver struct {
 	reader *kafka.Reader
 	logger *zap.Logger
 	tracer trace.Tracer
-}
-
-type kafkaHeaderCarrier []kafka.Header
-
-func (c kafkaHeaderCarrier) Get(key string) string {
-	for _, h := range c {
-		if h.Key == key {
-			return string(h.Value)
-		}
-	}
-	return ""
-}
-
-func (c *kafkaHeaderCarrier) Set(key string, value string) {
-	for i, h := range *c {
-		if h.Key == key {
-			(*c)[i].Value = []byte(value)
-			return
-		}
-	}
-	*c = append(*c, kafka.Header{Key: key, Value: []byte(value)})
-}
-
-func (c kafkaHeaderCarrier) Keys() []string {
-	keys := make([]string, len(c))
-	for i, h := range c {
-		keys[i] = h.Key
-	}
-	return keys
 }
 
 func NewEventReceiver(tracer trace.Tracer, logger *zap.Logger, addr string, topic string) EventReceiver {
@@ -72,7 +44,7 @@ func (e EventReceiver) Observe(ctx context.Context, callback func(event model.Ev
 	for {
 		msg, err := e.reader.ReadMessage(ctx)
 
-		carrier := kafkaHeaderCarrier(msg.Headers)
+		carrier := otelkafka.HeaderCarrier(msg.Headers)
 		msgCtx := otel.GetTextMapPropagator().Extract(ctx, &carrier)
 
 		_, span := e.tracer.Start(msgCtx, fmt.Sprintf("%s.v1 receive", msg.Topic))

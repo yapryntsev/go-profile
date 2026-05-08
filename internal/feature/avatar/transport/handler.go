@@ -34,19 +34,30 @@ func NewHandler(
 	delete domain.UseCaseDeleteAvatar,
 	upload domain.UseCaseUploadAvatarMetadata,
 	meter metric.Meter,
-) Handler {
-	uploadsTotal, _ := meter.Int64Counter(
+) (Handler, error) {
+	uploadsTotal, err := meter.Int64Counter(
 		"avatars_uploads_total",
 		metric.WithDescription("Total number of avatar uploads"),
 	)
-	uploadDuration, _ := meter.Float64Histogram(
+	if err != nil {
+		return Handler{}, err
+	}
+
+	uploadDuration, err := meter.Float64Histogram(
 		"avatars_upload_duration_seconds",
 		metric.WithDescription("Avatar upload duration"),
 	)
-	storageUsage, _ := meter.Float64UpDownCounter(
+	if err != nil {
+		return Handler{}, err
+	}
+
+	storageUsage, err := meter.Float64UpDownCounter(
 		"avatars_storage_bytes",
 		metric.WithDescription("Total storage used by avatars"),
 	)
+	if err != nil {
+		return Handler{}, err
+	}
 
 	return Handler{
 		avatar:         avatar,
@@ -56,7 +67,7 @@ func NewHandler(
 		uploadsTotal:   uploadsTotal,
 		uploadDuration: uploadDuration,
 		storageUsage:   storageUsage,
-	}
+	}, err
 }
 
 func (h Handler) PostApiV1Avatars(

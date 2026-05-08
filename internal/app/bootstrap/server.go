@@ -56,7 +56,17 @@ func NewServer(
 		return nil, nil, err
 	}
 
-	avatarFeature := avatar.New(cfg.Kafka.Addr, cfg.Kafka.Topic, db, s3Feature.S3Service, tracerProvider, meterProvider)
+	avatarFeature, err := avatar.New(
+		cfg.Kafka.Addr,
+		cfg.Kafka.Topic,
+		db,
+		s3Feature.S3Service,
+		tracerProvider,
+		meterProvider,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	checker := healthChecker{
 		db:        db,
