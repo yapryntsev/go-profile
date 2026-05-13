@@ -1,0 +1,122 @@
+replicaCount: 3
+
+image:
+  repository: goph-profile-app
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+serviceAccount:
+  create: true
+  automount: false
+  annotations: {}
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8080"
+  prometheus.io/path: "/metrics"
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: goph-profile.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 15
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+terminationGracePeriodSeconds: 30
+
+env:
+  ENV: prod
+  APP_NAME: goph-profile
+  APP_HTTP_ADDR: ":8080"
+  APP_JWT_TTL: 1h
+  APP_S3_ADDR: minio:9000
+  APP_S3_BUCKET_NAME: goph-profile
+  APP_KAFKA_ADDR: kafka:9092
+  APP_KAFKA_TOPIC: resize
+  OTEL_SERVICE_NAME: goph-profile
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_EXPORTER_OTLP_INSECURE: "true"
+
+secret:
+  APP_JWT_SECRET: ""
+  APP_DB_CONNECT: ""
+  APP_S3_ACCESS_KEY_ID: ""
+  APP_S3_SECRET_ACCESS_KEY: ""
+
+worker:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: goph-profile-worker
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+httpRoute:
+  enabled: false
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: ingress-nginx
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  path: /metrics
