@@ -7,8 +7,10 @@ import (
 	avatar "goph-profile/internal/feature/avatar/transport"
 	"goph-profile/internal/transport/middleware"
 	"net/http"
+	"reflect"
 
 	"github.com/labstack/echo/v4"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	"go.uber.org/zap"
 )
 
@@ -53,6 +55,7 @@ func NewHandler(
 		health:  health,
 	}
 
+	httpHandler.Use(otelecho.Middleware(reflect.TypeOf(appHandler).PkgPath()))
 	httpHandler.File("/", "web/static/index.html")
 
 	api.RegisterHandlers(

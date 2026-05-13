@@ -18,6 +18,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
 
   worker:
     build:
@@ -87,3 +89,64 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.143.0
+    container_name: otel-collector
+    ports:
+      - "8889:8889"
+      - "4317:4317"
+      - "13133:13133"
+    command:
+      - "--config=/etc/otel-collector-config.yaml"
+    volumes:
+      - ./configs/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    depends_on:
+      - loki
+      - jaeger
+      - prometheus
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.6.3
+    container_name: loki
+    command:
+      - "-config.file=/etc/loki/local-config.yaml"
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./configs/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.3.1
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./configs/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - loki
+      - prometheus
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./configs/prometheus.yaml:/etc/prometheus/prometheus.yaml
+    ports:
+      - '9090:9090'
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    restart: always
+    ports:
+      - '16686:16686'
+
+volumes:
+  loki-data:
+  grafana-data:

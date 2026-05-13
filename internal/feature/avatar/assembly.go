@@ -4,8 +4,11 @@ import (
 	"goph-profile/internal/feature/avatar/domain"
 	"goph-profile/internal/feature/avatar/infra"
 	"goph-profile/internal/feature/avatar/transport"
+	"reflect"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 type AvatarRepo interface {
@@ -13,19 +16,38 @@ type AvatarRepo interface {
 	domain.UploadAvatarRepo
 }
 
+type Feature struct {
+	Handler transport.Handler
+	Finish  func()
+}
+
 func New(
-	pool *pgxpool.Pool,
-	avatarRepo AvatarRepo,
 	kafkaAddr string,
 	kafkaTopic string,
-) (transport.Handler, func()) {
-	repo := infra.NewRepo(pool)
-	dsp := infra.NewEventDispatcher(kafkaAddr, kafkaTopic)
+	pool *pgxpool.Pool,
+	avatarRepo AvatarRepo,
+	tracerProvider *trace.TracerProvider,
+	meterProvider metric.MeterProvider,
+) (Feature, error) {
+	tracer := tracerProvider.Tracer(reflect.TypeOf(Feature{}).PkgPath())
+	meter := meterProvider.Meter(reflect.TypeOf(Feature{}).PkgPath())
 
-	return transport.NewHandler(
+	repo := infra.NewRepo(pool, tracer)
+	dsp := infra.NewEventDispatcher(tracer, kafkaAddr, kafkaTopic)
+
+	handler, err := transport.NewHandler(
 		domain.NewUseCaseGetAvatar(repo, avatarRepo),
 		domain.NewUseCaseGetAvatarMetadata(repo),
 		domain.NewUseCaseDeleteAvatar(repo, dsp),
 		domain.NewUseCaseUploadAvatarMetadata(avatarRepo, repo, dsp),
-	), dsp.Close
+		meter,
+	)
+	if err != nil {
+		return Feature{}, err
+	}
+
+	return Feature{
+		Handler: handler,
+		Finish:  dsp.Close,
+	}, err
 }
