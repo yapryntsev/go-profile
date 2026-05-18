@@ -36,11 +36,23 @@ spec:
           {{- end }}
           image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          ports:
+            - name: health
+              containerPort: {{ .Values.worker.healthPort }}
+              protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "helm.fullname" . }}
+                name: {{ include "helm.fullname" . }}-worker
             - secretRef:
-                name: {{ include "helm.fullname" . }}
+                name: {{ include "helm.fullname" . }}-worker
+          {{- with .Values.worker.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.worker.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.worker.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

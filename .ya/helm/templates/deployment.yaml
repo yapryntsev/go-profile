@@ -48,7 +48,7 @@ spec:
           lifecycle:
             preStop:
               exec:
-                command: ["sleep", "5"]
+                command: ["sleep", "{{ .Values.lifecycle.preStopSleepSeconds }}"]
           envFrom:
             - configMapRef:
                 name: {{ include "helm.fullname" . }}

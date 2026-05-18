@@ -19,19 +19,40 @@ spec:
       ports:
         - port: {{ .Values.service.port }}
           protocol: TCP
+    - from:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.monitoringNamespaceSelector | nindent 12 }}
+      ports:
+        - port: {{ .Values.service.port }}
+          protocol: TCP
   egress:
     - ports:
         - port: 53
           protocol: UDP
         - port: 53
           protocol: TCP
-    - ports:
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.egressRules.db.namespaceSelector | nindent 12 }}
+      ports:
         - port: 5432
           protocol: TCP
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.egressRules.s3.namespaceSelector | nindent 12 }}
+      ports:
         - port: 9000
           protocol: TCP
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.egressRules.kafka.namespaceSelector | nindent 12 }}
+      ports:
         - port: 9092
           protocol: TCP
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.egressRules.otel.namespaceSelector | nindent 12 }}
+      ports:
         - port: 4317
           protocol: TCP
 {{- end }}
